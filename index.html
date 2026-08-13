@@ -516,6 +516,15 @@
           }
           return { keys, prefix: 'song:', shared: true };
         },
+        // 곡 전체를 한 번의 요청으로 통째로 읽어오기 (한 곡씩 불러오는 것보다 훨씬 빠르고 안정적)
+        async getAllSongs(){
+          const snap = await db.ref('songs').once('value');
+          const result = {};
+          if(snap.exists()){
+            snap.forEach(child => { result[child.key] = child.val(); });
+          }
+          return result;
+        },
         // 여러 곡을 한 번의 네트워크 요청으로 한꺼번에 저장 (훨씬 빠름)
         async bulkSetSongs(numberToPayload){
           const updates = {};
@@ -565,6 +574,18 @@
           localStorage.setItem(LS_PREFIX + 'song:' + number, numberToPayload[number]);
         }
         return true;
+      },
+      async getAllSongs(){
+        const result = {};
+        const p = LS_PREFIX + 'song:';
+        for(let i=0; i<localStorage.length; i++){
+          const k = localStorage.key(i);
+          if(k && k.indexOf(p) === 0){
+            const number = k.slice(p.length);
+            try{ result[number] = JSON.parse(localStorage.getItem(k)); }catch(e){}
+          }
+        }
+        return result;
       }
     };
   }
@@ -1020,6 +1041,16 @@
   let allSongs = [];
 
   async function fetchAllSongs(onProgress){
+    // 가능하면 통째로 한 번에 불러오기 (훨씬 빠르고 안정적)
+    if(typeof window.storage.getAllSongs === 'function'){
+      if(onProgress) onProgress(0, 0);
+      const all = await window.storage.getAllSongs();
+      const songs = Object.keys(all).map(number => ({ number, ...all[number] }));
+      songs.sort((a,b)=> Number(a.number) - Number(b.number));
+      return songs;
+    }
+
+    // 폴백: 한 곡씩 순서대로 불러오기
     const listRes = await window.storage.list('song:', true);
     const keys = (listRes && listRes.keys) ? listRes.keys : [];
     const songs = [];
@@ -1166,7 +1197,8 @@
       showBanner('✅ 번호 섞기 완료! 시작 가능합니다', true);
       hideBannerAfter(4000);
     }catch(err){
-      if(!silent) alert('섞는 중 오류가 발생했어요. 잠시 후 다시 시도해주세요');
+      const detail = (err && err.message) ? err.message : String(err);
+      if(!silent) alert('섞는 중 오류가 발생했어요: ' + detail);
       globalBanner.classList.add('hidden');
     }finally{
       if(!silent){
