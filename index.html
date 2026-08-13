@@ -1167,7 +1167,11 @@
       }
 
       const numbers = songs.map(s=>s.number);
-      const payloads = songs.map(s=>({title:s.title, artist:s.artist, videoId:s.videoId}));
+      const payloads = songs.map(s=>({
+        title: s.title || '',
+        artist: s.artist || '',
+        videoId: (s.videoId === undefined ? null : s.videoId)
+      }));
 
       // Fisher-Yates: payloads만 섞고 numbers는 그대로 두어 번호<->곡 매칭을 재배정
       for(let i=payloads.length-1; i>0; i--){
